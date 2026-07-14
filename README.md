@@ -3,10 +3,12 @@
 This repository contains an automated Python script that syncs your recently solved LeetCode questions to a Notion database. It uses GitHub Actions to run automatically every 20 minutes, ensuring your Notion workspace stays up to date without any manual intervention.
 
 ## Features
-- Fetches your recently accepted submissions from LeetCode.
-- Retrieves metadata (difficulty, topics, problem number) for each problem.
-- Checks your Notion database to ensure the problem hasn't already been added (based on the `LC No.` property) to avoid duplicates.
-- Creates a new page in Notion with all the relevant details (Name, Topic, Difficulty, Status, Date, Link).
+- **Auto-Sync:** Fetches your recently accepted submissions from LeetCode. Retrieves metadata (difficulty, topics, problem number) for each problem and creates a page in Notion if it hasn't been added yet (checks `LC No.` property).
+- **Auto-Colors:** Updates your Notion database automatically to color-code difficulty (Easy=green, Medium=yellow, Hard=red) and status (Done=green, Revise=orange).
+- **Stats Dashboard:** Maintains and automatically updates a stats summary block on the parent page ("DSA COMMAND CENTRE") with callouts showing total questions solved, a difficulty breakdown, and your current streak.
+
+## Notion Custom Views
+Please note that the Notion API cannot currently create custom database views (like Board, Gallery, or Timeline). To create these, you will need to add them manually using the "+ Add view" button in the Notion UI, which takes under a minute.
 
 ## Setup Instructions
 
