@@ -225,7 +225,8 @@ def create_notion_page(question_data, submission_data):
 def update_database_schema():
     """Auto-colors the Difficulty and Status select options in the Notion database."""
     url = f"https://api.notion.com/v1/databases/{NOTION_DB_ID}"
-    payload = {
+    # 1. Update colors
+    color_payload = {
         "properties": {
             "Difficulty": {
                 "select": {
@@ -243,17 +244,28 @@ def update_database_schema():
                         {"name": "Revise", "color": "orange"}
                     ]
                 }
-            },
+            }
+        }
+    }
+    color_response = requests.patch(url, headers=NOTION_HEADERS, json=color_payload)
+    if color_response.status_code == 200:
+        print("Database schema colors updated successfully.")
+    else:
+        print(f"Failed to update database schema colors: {color_response.text}")
+
+    # 2. Add Solution property
+    schema_payload = {
+        "properties": {
             "Solution": {
                 "rich_text": {}
             }
         }
     }
-    response = requests.patch(url, headers=NOTION_HEADERS, json=payload)
-    if response.status_code == 200:
-        print("Database schema updated successfully.")
+    schema_response = requests.patch(url, headers=NOTION_HEADERS, json=schema_payload)
+    if schema_response.status_code == 200:
+        print("Database schema (Solution property) updated successfully.")
     else:
-        print(f"Failed to update database schema: {response.text}")
+        print(f"Failed to update database schema (Solution property): {schema_response.text}")
 
 def get_stats():
     """Fetches all 'Done' questions from the database and calculates stats."""
