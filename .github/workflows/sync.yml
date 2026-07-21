@@ -29,4 +29,5 @@ jobs:
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: python leetcode_sync.py

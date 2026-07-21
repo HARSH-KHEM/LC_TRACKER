@@ -10,12 +10,18 @@ load_dotenv()
 LEETCODE_USERNAME = "harshkh08"
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_DB_ID = os.getenv("NOTION_DB_ID")
+GH_PAT = os.getenv("GH_PAT")
 NOTION_PARENT_PAGE_ID = "39d0c38a221480af9e09ca9889d57e26"
 
 # Validate configuration
 if not NOTION_TOKEN or not NOTION_DB_ID:
     print("Error: NOTION_TOKEN or NOTION_DB_ID environment variables are not set.")
     exit(1)
+
+if GH_PAT:
+    print("Startup Info: GH_PAT is present in the environment.")
+else:
+    print("Startup Info: GH_PAT is missing from the environment. Unauthenticated limits may apply.")
 
 NOTION_HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -80,6 +86,82 @@ def check_question_exists(lc_no):
     results = response.json().get("results", [])
     return len(results) > 0
 
+import base64
+
+def fetch_solution_from_github(lc_no, title_slug):
+    """Fetches the solution code and README from the LC_Journey repository."""
+    folder_name = f"{lc_no:04d}-{title_slug}"
+    url = f"https://api.github.com/repos/HARSH-KHEM/LC_Journey/contents/{folder_name}"
+    
+    headers = {}
+    if GH_PAT:
+        headers["Authorization"] = f"Bearer {GH_PAT}"
+    else:
+        print("Warning: GH_PAT environment variable not set. Using unauthenticated GitHub API calls (rate limits may apply).")
+
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 404:
+            print(f"Warning: Solution folder {folder_name} not found in LC_Journey.")
+            return None, None
+        response.raise_for_status()
+        files = response.json()
+        
+        readme_content = None
+        code_content = None
+        
+        for file in files:
+            if file["name"].lower() == "readme.md":
+                file_resp = requests.get(file["url"], headers=headers)
+                file_resp.raise_for_status()
+                readme_content = base64.b64decode(file_resp.json()["content"]).decode('utf-8')
+            elif file["name"].startswith(folder_name):
+                file_resp = requests.get(file["url"], headers=headers)
+                file_resp.raise_for_status()
+                code_content = base64.b64decode(file_resp.json()["content"]).decode('utf-8')
+
+        return readme_content, code_content
+
+    except Exception as e:
+        print(f"Error fetching solution from GitHub for {folder_name}: {e}")
+        return None, None
+
+def chunk_rich_text(text, is_code=False, max_length=1900):
+    """Splits a string into chunks to fit within Notion's 2000 character limit per rich text object."""
+    if not text:
+        return []
+    
+    chunks = []
+    for i in range(0, len(text), max_length):
+        chunk = text[i:i + max_length]
+        rich_text_obj = {
+            "type": "text",
+            "text": {"content": chunk}
+        }
+        if is_code:
+            rich_text_obj["annotations"] = {"code": True}
+        chunks.append(rich_text_obj)
+    return chunks
+
+def format_solution_rich_text(readme_content, code_content):
+    """Combines approach and code into a single rich text array."""
+    if not readme_content and not code_content:
+        return []
+        
+    rich_text = []
+    
+    if readme_content:
+        rich_text.extend(chunk_rich_text("Approach:\n"))
+        rich_text.extend(chunk_rich_text(readme_content))
+        if code_content:
+            rich_text.extend(chunk_rich_text("\n\n---\n\n"))
+            
+    if code_content:
+        rich_text.extend(chunk_rich_text("Code:\n"))
+        rich_text.extend(chunk_rich_text(code_content, is_code=True))
+        
+    return rich_text
+
 def create_notion_page(question_data, submission_data):
     """Creates a new page in the Notion database with the question details."""
     url = "https://api.notion.com/v1/pages"
@@ -127,6 +209,12 @@ def create_notion_page(question_data, submission_data):
         }
     }
     
+    # Fetch solution
+    readme, code = fetch_solution_from_github(lc_no, title_slug)
+    solution_rich_text = format_solution_rich_text(readme, code)
+    if solution_rich_text:
+        payload["properties"]["Solution"] = {"rich_text": solution_rich_text}
+    
     response = requests.post(url, headers=NOTION_HEADERS, json=payload)
     if response.status_code == 200:
         return True
@@ -155,14 +243,17 @@ def update_database_schema():
                         {"name": "Revise", "color": "orange"}
                     ]
                 }
+            },
+            "Solution": {
+                "rich_text": {}
             }
         }
     }
     response = requests.patch(url, headers=NOTION_HEADERS, json=payload)
     if response.status_code == 200:
-        print("Database schema colors updated successfully.")
+        print("Database schema updated successfully.")
     else:
-        print(f"Failed to update database schema colors: {response.text}")
+        print(f"Failed to update database schema: {response.text}")
 
 def get_stats():
     """Fetches all 'Done' questions from the database and calculates stats."""
